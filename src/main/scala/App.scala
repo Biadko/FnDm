@@ -46,9 +46,7 @@ object App {
         "           parse_url(concat(url,params),'QUERY','c') as wiki_id" +
         "     FROM pv ")
 
-    pvDF_parsed_article_wiki_dt.show()
-
-    //wyciągamy id artykulu i eventu odpowiednio dla pierwzego i ostatniego zarejestrowanego zdarzenia
+    //wyciągamy id artykulu i eventu odpowiednio dla pierwszego i ostatniego zarejestrowanego zdarzenia
     pvDF_parsed_article_wiki_dt.createOrReplaceTempView("pv_parsed")
 
     val pvDF_result = spark
@@ -75,21 +73,14 @@ object App {
     
     
       //zapisujemy wynik do CSV
-      /**pvDF_result.write
-        .mode(SaveMode.Overwrite)
-        .option("header",true)
-        .option("delimiter",",")
-        .csv("data/result.csv")
-      **/
-
+      // tymczasowo zapisujemy do katalogu result_tmp
+      //Później zmienana jest jego nazwa i ostatecznie zapisany jest w data/results.csv
     pvDF_result.coalesce(1).write
       .mode(SaveMode.Overwrite)
       .format("com.databricks.spark.csv")
       .option("header", "true")
       .option("delimiter",",")
       .save("data/result_tmp")
-
-
 
   }
 }
