@@ -8,8 +8,14 @@
 w raport, pokazujący dla każdgego użytkownika, początkowy oraz ostatni artykuł oraz dział.
 Z raportu wykluczeni są użytkownicy, którzy dokonali tylko jednej odsłony.
 
+Aplikacja dziala w Sparku (v3.1.2) i jest napisana w Scali (v2.12.14)
+Uruchamiana skryptem run.sh.
+
+
+
+
 ## Repozytorium
-Źródła aplikacji można znaleźć na github pod adresem: 
+Źródła aplikacji można znaleźć na github pod adresem: https://github.com/Biadko/FnDm.git
 Osobą odpowiedzialną jest *Biadko* 
 
 ## Opis działania FnDm
@@ -30,10 +36,14 @@ FnDm przetwarza odsłony użytkowników w interwebie
 Gotową wersję aplikacji przygotowujemy przez zbudowanie jej skryptem:
 bash scripts/build.bash
 
-## Opis działania FnDm
-Aplikację uruchamiamy skryptem
-bash run.sh
+#### Uruchamianie aplikacji
+Do uruchamiania aplikacji z linii poleceń służy skrypt `run.sh`:
+`./run.sh
+Komenda uruchamia Sparka oraz modyfikuje końcową nazwę pliku wynikowego.
+
+#### Wynik końcowy
+Plik z wynikami znajduje się w data/result.csv
 
 
 
-2. Plik z danymi zawiera 5 kolumn., bez nagłówków, rodzielone znakiem pipe.
+
