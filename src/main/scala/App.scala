@@ -1,69 +1,95 @@
 package com.testing.biadko
 
-//import org.apache.avro.generic.GenericData.StringType
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.types._
-//import spark.implicits._
-
-import org.apache.spark.{SparkConf, SparkContext, sql}
 
 object App {
 
-  case class Pv(url:String, langCode:String, pvDate: String, id:String, track:String)
 
     val spark = SparkSession
       .builder()
-      .appName("pvApp")
+      .appName("pvAgregator")
       .master("local[*]")
       .getOrCreate()
 
 
   def main(args: Array[String]) = {
-    /**
-    spark.sql("select 'gg' as a,'hh' as b").show()
 
-    val RDD = spark.sparkContext
-      .textFile("data/data_input2.log")
-      .map(_.split("|"))
-      .map(attributes => Pv(attributes(0), attributes(1), attributes(2), attributes(3), attributes(4)))
-      .take(5)
-
-    val DF = spark.createDataFrame(RDD)
-      DF.show()
-
-
-    //val sc = spark.sparkContext
-
-    val rdd = spark.sparkContext.parallelize(
-      Seq(
-        ("first", Array(1.0, 4.0, 4.0)),
-        ("test", Array(1.0, 4.0, 4.0)),
-        ("choose", Array(1.0, 4.0, 4.0))
-      )
-    )
-
-    val dfWithoutSchema = spark.createDataFrame(rdd)
-    dfWithoutSchema.show()
-**/
-    //val dfPvLog = spark.read.textFile("data/data_input2.log")
-    //dfPvLog.show(5)
-
-    val schema = new StructType()
+// Plik jest bez naglowkow, wiec podajemy typy i nazwy kolumn
+    val input_schema = new StructType()
       .add(StructField("url", StringType, true))
       .add(StructField("lang", StringType, true))
       .add(StructField("str_date", StringType, true))
-      .add(StructField("UID", StringType, true))
+      .add(StructField("user_id", StringType, true))
       .add(StructField("params", StringType, true))
 
-
-    val fdPv = spark.read.format("csv")
+    //wciągmy plik do Dataframe
+    val pvDF = spark.read.format("csv")
       .option("sep", "|")
-      //.option("inferSchema", "true")
-      .schema(schema)
+      .schema(input_schema)
       .option("header", "false")
-      .load("data/data_input2.log")
+      .load("data/data_input.log")
 
-    fdPv.show()
+    //Tworzymy widok SQL. To podejście umożliwi zastosowanie gotowych funkcji SQL do parsowania
+    pvDF.createOrReplaceTempView("pv")
+
+    //Wyciągamy id artykulu i id wiki
+    val pvDF_parsed_article_wiki_dt = spark
+      .sql("" +
+        "       SELECT url," +
+        "           lang, " +
+        "           str_date," +
+        "           regexp_replace(str_date,'<\\\\d+>','') as dt," +
+        "           user_id," +
+        "           params, " +
+        "           parse_url(concat(url,params),'QUERY','a') as article_id," +
+        "           parse_url(concat(url,params),'QUERY','c') as wiki_id" +
+        "     FROM pv ")
+
+    pvDF_parsed_article_wiki_dt.show()
+
+    //wyciągamy id artykulu i eventu odpowiednio dla pierwzego i ostatniego zarejestrowanego zdarzenia
+    pvDF_parsed_article_wiki_dt.createOrReplaceTempView("pv_parsed")
+
+    val pvDF_result = spark
+      .sql("" +
+        "    WITH pv_first_last as (" +
+        "   SELECT " +
+        "           user_id," +
+        "           first_value(article_id) over (partition by user_id order by dt) as first_event_article_id," +
+        "           first_value(article_id) over (partition by user_id order by dt DESC) as last_event_article_id," +
+        "           first_value(wiki_id) over (partition by user_id order by dt) as first_event_wiki_id," +
+        "           first_value(wiki_id) over (partition by user_id order by dt DESC) as last_event_wiki_id," +
+        "           count(1) over (partition by user_id) as tmp_cnt_per_user_id" +
+        "     FROM pv_parsed )" +
+        "   SELECT distinct user_id," +
+        "           first_event_article_id," +
+        "           last_event_article_id," +
+        "           first_event_wiki_id," +
+        "           last_event_wiki_id," +
+        "           if(concat(first_event_article_id,'-',first_event_wiki_id) = concat(last_event_article_id,'-',last_event_wiki_id),true,false) as is_same_article ," +
+        "           if(first_event_wiki_id = last_event_wiki_id, true, false) as is_same_wiki" +
+        "   FROM pv_first_last" +
+        "   WHERE  tmp_cnt_per_user_id > 1" +
+        "   ORDER BY user_id ")
+    
+    
+      //zapisujemy wynik do CSV
+      /**pvDF_result.write
+        .mode(SaveMode.Overwrite)
+        .option("header",true)
+        .option("delimiter",",")
+        .csv("data/result.csv")
+      **/
+
+    pvDF_result.coalesce(1).write
+      .mode(SaveMode.Overwrite)
+      .format("com.databricks.spark.csv")
+      .option("header", "true")
+      .option("delimiter",",")
+      .save("data/result_tmp")
+
+
 
   }
 }
